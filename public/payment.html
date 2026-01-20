@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Payment - Voice Master</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f6f9; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 400px; }
+        h2 { margin-bottom: 10px; color: #333; }
+        p { color: #666; margin-bottom: 20px; }
+        .success-box { display: none; color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card" id="payment-box">
+        <h2>Secure Payment</h2>
+        <p>Plan: <strong id="plan-name">Loading...</strong></p>
+        <div id="paypal-button-container"></div>
+    </div>
+
+    <div class="card success-box" id="success-msg">
+        <h1>🎉 Payment Successful!</h1>
+        <p>Your plan has been activated.</p>
+        <p>You can close this tab and restart the extension.</p>
+    </div>
+
+    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID_HERE&currency=USD"></script>
+
+    <script>
+        // 1. URL से Plan ID निकालें
+        const params = new URLSearchParams(window.location.search);
+        const planId = params.get('plan') || 'daily_2hr';
+        const uid = params.get('uid'); // यूजर की ID
+        
+        document.getElementById('plan-name').innerText = planId.toUpperCase();
+
+        if (!uid) {
+            alert("User ID missing. Please login to extension first.");
+            document.body.style.display = 'none';
+        }
+
+        // 2. PayPal Buttons
+        paypal.Buttons({
+            createOrder: async function(data, actions) {
+                // Backend API call to create order
+                const response = await fetch('/api/create-order-web', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ planId: planId, uid: uid })
+                });
+                const order = await response.json();
+                return order.orderID;
+            },
+            onApprove: async function(data, actions) {
+                // Backend API call to capture
+                const response = await fetch('/api/capture-order-web', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderID: data.orderID, planId: planId, uid: uid })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('payment-box').style.display = 'none';
+                    document.getElementById('success-msg').style.display = 'block';
+                } else {
+                    alert("Payment Failed!");
+                }
+            }
+        }).render('#paypal-button-container');
+    </script>
+</body>
+</html>

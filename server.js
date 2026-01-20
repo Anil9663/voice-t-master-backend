@@ -4,11 +4,15 @@ const mongoose = require('mongoose');
 const admin = require('firebase-admin');
 const cors = require('cors');
 const paypal = require('@paypal/checkout-server-sdk');
+const path = require('path'); // ✅ यह लाइन बहुत जरुरी है
 
 // --- 1. CONFIGURATION ---
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ✅ Public Folder को Open करें (ताकि payment.html दिखे)
+app.use(express.static('public'));
 
 // Firebase Admin Setup
 const serviceAccount = require(`./${process.env.FIREBASE_CREDENTIALS}`);
@@ -29,12 +33,11 @@ const client = new paypal.core.PayPalHttpClient(
   new Environment(process.env.PAYPAL_CLIENT_ID, process.env.PAYPAL_CLIENT_SECRET)
 );
 
-// --- 2. DATABASE MODELS (Schema) ---
-// User Schema (वही डेटा जो हमें चाहिए)
+// --- 2. DATABASE MODELS ---
 const userSchema = new mongoose.Schema({
-  uid: { type: String, required: true, unique: true }, // Firebase UID
+  uid: { type: String, required: true, unique: true },
   email: String,
-  customerId: String, // VM-2026-XXXX
+  customerId: String,
   name: String,
   isPro: { type: Boolean, default: false },
   plan: { type: String, default: 'free' },
@@ -42,10 +45,8 @@ const userSchema = new mongoose.Schema({
   dailyLimitSeconds: { type: Number, default: 5400 },
   createdAt: { type: Date, default: Date.now }
 });
-
 const User = mongoose.model('User', userSchema);
 
-// Payment History Schema
 const paymentSchema = new mongoose.Schema({
   uid: String,
   orderId: String,
@@ -54,24 +55,29 @@ const paymentSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   status: String
 });
-
 const Payment = mongoose.model('Payment', paymentSchema);
 
-// --- 3. PLANS CONFIGURATION (Secure) ---
+// --- 3. PLANS CONFIGURATION ---
 const PLANS = {
   "daily_4hr":   { price: "4.99", days: 30, limit: 14400, name: "Creator Pro" },
   "daily_2hr":   { price: "2.99", days: 30, limit: 7200,  name: "Starter Flex" },
+  "daily_2_5hr": { price: "3.49", days: 30, limit: 9000,  name: "Student Smart" },
+  "daily_3hr":   { price: "3.99", days: 30, limit: 10800, name: "Study Plus" },
+  "daily_3_5hr": { price: "4.49", days: 30, limit: 12600, name: "Writer Flow" },
   "pro_monthly": { price: "5.99", days: 30, limit: -1,    name: "Monthly Pro" },
+  "pro_quarterly": { price: "14.99", days: 90, limit: -1, name: "3 Months Pro" },
+  "pro_biannual": { price: "23.99", days: 180, limit: -1, name: "6 Months Pro" },
   "pro_yearly":  { price: "35.99", days: 365, limit: -1,   name: "Yearly Saver" },
-  "pass_1day":   { price: "2.99", days: 1, limit: -1,     name: "1 Day Pass" }
+  "lifetime_pro": { price: "199.99", days: 36500, limit: -1, name: "Lifetime Access" },
+  "pass_1day":   { price: "2.99", days: 1, limit: -1,     name: "1 Day Pass" },
+  "pass_3day":   { price: "3.99", days: 3, limit: -1,     name: "3 Day Pass" },
+  "pass_7day":   { price: "4.99", days: 7, limit: -1,     name: "7 Day Pass" }
 };
 
-// --- 4. MIDDLEWARE (Security Guard) ---
-// यह चेक करेगा कि रिक्वेस्ट भेजने वाला यूजर असली है या नहीं
+// --- 4. MIDDLEWARE (Token Check) ---
 const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: "Unauthorized" });
-
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.uid = decodedToken.uid;
@@ -84,17 +90,20 @@ const verifyToken = async (req, res, next) => {
 
 // --- 5. API ROUTES ---
 
-// A. Login/Sync User (Frontend से कॉल होगा जब यूजर लॉगिन करे)
+// ✅ ROUTE 1: Payment Page Serve करना
+app.get('/pay', (req, res) => {
+    // यह public/payment.html फाइल को ब्राउज़र में भेजेगा
+    res.sendFile(path.join(__dirname, 'public', 'payment.html'));
+});
+
+// ✅ ROUTE 2: Sync User (Extension से)
 app.post('/api/sync-user', verifyToken, async (req, res) => {
   try {
     let user = await User.findOne({ uid: req.uid });
-
-    // अगर यूजर पहली बार आया है, तो नया बनाओ
     if (!user) {
       const year = new Date().getFullYear();
       const randomPart = Math.floor(1000 + Math.random() * 9000);
       const customID = `VM-${year}-${randomPart}`;
-
       user = new User({
         uid: req.uid,
         email: req.email,
@@ -102,18 +111,16 @@ app.post('/api/sync-user', verifyToken, async (req, res) => {
         name: req.body.name || "User"
       });
       await user.save();
-      console.log(`🆕 New User Created: ${req.email}`);
     }
-
-    res.json(user); // यूजर का डेटा वापस भेजो
+    res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// B. Create PayPal Order
-app.post('/api/create-order', verifyToken, async (req, res) => {
-  const { planId } = req.body;
+// ✅ ROUTE 3: Create Order (WEB VERSION - No Token Header)
+app.post('/api/create-order-web', async (req, res) => {
+  const { planId, uid } = req.body; // UID body से आएगा
   const plan = PLANS[planId];
 
   if (!plan) return res.status(400).json({ error: "Invalid Plan" });
@@ -137,9 +144,9 @@ app.post('/api/create-order', verifyToken, async (req, res) => {
   }
 });
 
-// C. Capture Order & Activate Plan
-app.post('/api/capture-order', verifyToken, async (req, res) => {
-  const { orderID, planId } = req.body;
+// ✅ ROUTE 4: Capture Order (WEB VERSION - No Token Header)
+app.post('/api/capture-order-web', async (req, res) => {
+  const { orderID, planId, uid } = req.body;
   const plan = PLANS[planId];
 
   const request = new paypal.orders.OrdersCaptureRequest(orderID);
@@ -155,7 +162,7 @@ app.post('/api/capture-order', verifyToken, async (req, res) => {
 
       // MongoDB Update
       await User.findOneAndUpdate(
-        { uid: req.uid },
+        { uid: uid }, // UID सीधे उपयोग करें
         { 
           isPro: (plan.limit === -1),
           plan: planId,
@@ -164,16 +171,16 @@ app.post('/api/capture-order', verifyToken, async (req, res) => {
         }
       );
 
-      // Save Payment Record
+      // Save Payment
       await new Payment({
-        uid: req.uid,
+        uid: uid,
         orderId: orderID,
         amount: plan.price,
         planId: planId,
         status: "Success"
       }).save();
 
-      console.log(`💰 Plan Activated for ${req.email}: ${planId}`);
+      console.log(`💰 Plan Activated for ${uid}: ${planId}`);
       res.json({ success: true });
     } else {
       res.json({ success: false });
