@@ -133,16 +133,35 @@ app.post('/api/auth/login', async (req, res) => {
       });
       await user.save();
     } else {
-      // --- EXISTING USER ---
-      // डेटा ओवरराइट (Override) करें
-      user.analytics.country = country;
-      user.analytics.inputLanguage = language;
-      if (survey) user.analytics.survey = survey; // अगर सर्वे दोबारा भरा तो अपडेट
+            // --- EXISTING USER (Migration Fix) ---
+            
+            // 1. अगर पुराने यूजर के पास ID नहीं है, तो अभी जेनरेट करें
+            if (!user.customerId) {
+                const newId = await generateCustomerId();
+                user.customerId = newId;
+                console.log(`♻️ Generated ID for Existing User: ${newId}`);
+            }
 
-      user.lastLogin = new Date();
-      await user.save();
-      console.log(`♻️ User Synced: ${user.customerId}`);
-    }
+            // 2. डेटा ओवरराइट (Override) करें
+            // हमें यह सुनिश्चित करना है कि analytics ऑब्जेक्ट मौजूद हो
+            if (!user.analytics) user.analytics = {};
+
+            user.analytics.country = country;
+            user.analytics.inputLanguage = language;
+            
+            // 3. सर्वे डेटा अपडेट (Survey Data Update)
+            if (survey) {
+                user.analytics.survey = {
+                    profession: survey.profession || user.analytics.survey?.profession || 'Unknown',
+                    useCase: survey.useCase || user.analytics.survey?.useCase || 'Unknown',
+                    source: survey.source || user.analytics.survey?.source || 'Unknown'
+                };
+            }
+            
+            user.lastLogin = new Date();
+            await user.save();
+            console.log(`✅ User Updated: ${user.customerId}`);
+        }
 
     // C. 🔥 GENERATE SECURE SESSION TOKEN
     // यह टोकन फ्रंटेंड में सेव होगा
