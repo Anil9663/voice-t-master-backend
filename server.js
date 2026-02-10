@@ -319,7 +319,7 @@ app.post('/api/payment/verify-token', async (req, res) => {
   }
 });
 
-// 5. CAPTURE ORDER
+// 5. CAPTURE ORDER (JWT Flow)
 app.post('/api/payment/capture', async (req, res) => {
   const { orderID, token } = req.body;
   try {
@@ -348,6 +348,79 @@ app.post('/api/payment/capture', async (req, res) => {
       res.json({ success: true });
     }
   } catch (e) {
+    res.status(500).json({ error: "Capture Failed" });
+  }
+});
+
+// --- NEW ROUTES FOR WEB PAYMENT (UID Based) ---
+
+// 6. PayPal Config (For Frontend)
+app.get('/api/config/paypal', (req, res) => {
+  res.json({ clientId: process.env.PAYPAL_CLIENT_ID });
+});
+
+// 7. Create Order (Web/UID)
+app.post('/api/create-order-web', async (req, res) => {
+  const { planId, uid } = req.body;
+  const plan = PLANS[planId];
+  if (!plan) return res.status(400).json({ error: "Invalid Plan" });
+
+  const request = new paypal.orders.OrdersCreateRequest();
+  request.prefer("return=representation");
+  request.requestBody({
+    intent: 'CAPTURE',
+    purchase_units: [{
+      amount: {
+        currency_code: 'USD',
+        value: plan.price
+      },
+      description: plan.name
+    }]
+  });
+
+  try {
+    const order = await client.execute(request);
+    res.json({ orderID: order.result.id });
+  } catch (e) {
+    console.error("PayPal Create Error:", e);
+    res.status(500).json({ error: "Order Creation Failed" });
+  }
+});
+
+// 8. Capture Order (Web/UID)
+app.post('/api/capture-order-web', async (req, res) => {
+  const { orderID, planId, uid } = req.body;
+  const plan = PLANS[planId];
+
+  if (!plan) return res.status(400).json({ error: "Invalid Plan" });
+
+  const request = new paypal.orders.OrdersCaptureRequest(orderID);
+  request.requestBody({});
+
+  try {
+    const capture = await client.execute(request);
+
+    if (capture.result.status === 'COMPLETED') {
+      const now = new Date();
+      const expiryDate = new Date();
+      expiryDate.setDate(now.getDate() + plan.days);
+
+      // Update User directly by UID
+      await User.findOneAndUpdate(
+        { uid: uid },
+        {
+          isPro: (plan.limit === -1),
+          plan: planId,
+          planExpiry: expiryDate, // UTC
+          dailyLimitSeconds: plan.limit
+        }
+      );
+
+      console.log(`💰 Paid (Web): ${uid} -> ${planId}`);
+      res.json({ success: true });
+    }
+  } catch (e) {
+    console.error("PayPal Capture Error:", e);
     res.status(500).json({ error: "Capture Failed" });
   }
 });

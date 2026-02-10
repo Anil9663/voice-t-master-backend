@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema({
     walletBalance: { type: Number, default: 0 }, // Refer & Earn Balance
     isPro: { type: Boolean, default: false },
     plan: { type: String, default: 'free' },
+    // 🔥 New Field: Daily Usage Limit (Seconds)
+    dailyLimitSeconds: { type: Number, default: 5400 }, // 1.5 Hours default
 
     // 3. Dates (Always in UTC)
     planExpiry: { type: Date },
