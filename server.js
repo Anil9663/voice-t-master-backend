@@ -49,6 +49,24 @@ const PLANS = {
   "pass_1day": { price: "2.99", days: 1, limit: -1, name: "1 Day Pass" }
 };
 
+// --- 🛡️ VALIDATION CONSTANTS ---
+// Allowed Countries (Whitelist)
+const ALLOWED_COUNTRIES = [
+  "India", "United States", "United Kingdom", "Canada", "Australia",
+  "Germany", "France", "Japan", "China", "Brazil", "Unknown" // Fallback
+];
+
+// Allowed Languages (Whitelist)
+const ALLOWED_LANGUAGES = [
+  "hi-IN", "en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "ja-JP",
+  "zh-CN", "pt-BR", "Unknown"
+];
+
+// Allowed Survey Data
+const ALLOWED_PROFESSIONS = ['student', 'developer', 'writer', 'business', 'medical', 'other', 'Unknown'];
+const ALLOWED_USECASES = ['learning', 'working', 'coding', 'writing', 'personal', 'other', 'Unknown'];
+const ALLOWED_SOURCES = ['google', 'youtube', 'friend', 'social', 'ads', 'other', 'Unknown'];
+
 // --- 🛠️ HELPER: ID GENERATOR ---
 // Format: VTM-202601301000
 async function generateCustomerId() {
@@ -67,7 +85,7 @@ async function generateCustomerId() {
     { new: true, upsert: true } // Create if not exists
   );
 
-  return `VTM-${dateStr}${counter.seq}`;
+  return `VTM-${dateStr}-${counter.seq}`;
 }
 
 // --- 🔒 MIDDLEWARE: Verify Session ---
@@ -93,20 +111,17 @@ app.post('/api/auth/login', async (req, res) => {
   // Frontend se data:
   const { firebaseToken, country, language, survey } = req.body;
 
-  // 🛡️ SERVER VALIDATION (Security Check)
-  if (!country || !language) {
-    return res.status(400).json({ error: "Country and Language are required!" });
-  }
-
-  // सर्वे वैलिडेशन (अगर भेजा है तो सही होना चाहिए)
-  if (survey) {
-    const validProfessions = ['student', 'developer', 'writer', 'business', 'medical', 'other'];
-    if (survey.profession && !validProfessions.includes(survey.profession)) {
-      return res.status(400).json({ error: "Invalid Profession Selection" });
-    }
-  }
-
   try {
+    // 🛡️ 1. STRICT VALIDATION (Whitelist Check)
+    if (!ALLOWED_COUNTRIES.includes(country)) return res.status(400).json({ error: "Invalid Country" });
+    if (!ALLOWED_LANGUAGES.includes(language)) return res.status(400).json({ error: "Invalid Language" });
+
+    if (survey) {
+      if (survey.profession && !ALLOWED_PROFESSIONS.includes(survey.profession)) return res.status(400).json({ error: "Invalid Profession" });
+      if (survey.useCase && !ALLOWED_USECASES.includes(survey.useCase)) return res.status(400).json({ error: "Invalid Use Case" });
+      if (survey.source && !ALLOWED_SOURCES.includes(survey.source)) return res.status(400).json({ error: "Invalid Source" });
+    }
+
     // A. Verify Firebase Token
     const decodedToken = await admin.auth().verifyIdToken(firebaseToken);
     const uid = decodedToken.uid;
@@ -125,63 +140,129 @@ app.post('/api/auth/login', async (req, res) => {
         customerId: newId,
         email,
         name: decodedToken.name || "User",
+        plan: "free", // Default
+        isPro: false,
         analytics: {
           country,
           inputLanguage: language,
-          survey: survey || {} // सर्वे डाटा सेव
+          survey: survey || {}
         }
       });
       await user.save();
     } else {
-            // --- EXISTING USER (Migration Fix) ---
-            
-            // 1. अगर पुराने यूजर के पास ID नहीं है, तो अभी जेनरेट करें
-            if (!user.customerId) {
-                const newId = await generateCustomerId();
-                user.customerId = newId;
-                console.log(`♻️ Generated ID for Existing User: ${newId}`);
-            }
+      // --- EXISTING USER ---
+      if (!user.customerId) {
+        const newId = await generateCustomerId();
+        user.customerId = newId;
+      }
 
-            // 2. डेटा ओवरराइट (Override) करें
-            // हमें यह सुनिश्चित करना है कि analytics ऑब्जेक्ट मौजूद हो
-            if (!user.analytics) user.analytics = {};
+      // Update Analytics (Trusted Data)
+      if (!user.analytics) user.analytics = {};
+      user.analytics.country = country;
+      user.analytics.inputLanguage = language;
 
-            user.analytics.country = country;
-            user.analytics.inputLanguage = language;
-            
-            // 3. सर्वे डेटा अपडेट (Survey Data Update)
-            if (survey) {
-                user.analytics.survey = {
-                    profession: survey.profession || user.analytics.survey?.profession || 'Unknown',
-                    useCase: survey.useCase || user.analytics.survey?.useCase || 'Unknown',
-                    source: survey.source || user.analytics.survey?.source || 'Unknown'
-                };
-            }
-            
-            user.lastLogin = new Date();
-            await user.save();
-            console.log(`✅ User Updated: ${user.customerId}`);
-        }
+      // Update Survey (Merge)
+      if (survey) {
+        user.analytics.survey = {
+          profession: survey.profession || user.analytics.survey?.profession || 'Unknown',
+          useCase: survey.useCase || user.analytics.survey?.useCase || 'Unknown',
+          source: survey.source || user.analytics.survey?.source || 'Unknown'
+        };
+      }
 
-    // C. 🔥 GENERATE SECURE SESSION TOKEN
-    // यह टोकन फ्रंटेंड में सेव होगा
+      user.lastLogin = new Date();
+      await user.save();
+    }
+
+    // C. 🔥 PREPARE SECURE TOKEN DATA
+    // Calculate Limits
+    let currentLimit = 5400; // Default Free: 90 Mins
+    const userPlan = PLANS[user.plan] || PLANS['daily_4hr']; // Default fallback if needed
+
+    // Check if Plan Valid/Expired
+    const now = new Date();
+    const expiry = user.planExpiry ? new Date(user.planExpiry) : null;
+    let isExpired = false;
+
+    if (user.isPro && expiry && now > expiry) {
+      isExpired = true;
+      console.log(`⚠️ Plan Expired for ${user.customerId}`);
+      // Notify User (Email Trigger)
+      // sendPlanExpiredEmail(user.email); 
+    }
+
+    // Determine Final Limits for Token
+    if (user.isPro && !isExpired) {
+      currentLimit = user.dailyLimitSeconds || -1; // -1 means Unlimited
+    } else {
+      currentLimit = 5400; // Back to Free Limit
+    }
+
+    // D. GENERATE SIGNED SESSION TOKEN
     const sessionToken = jwt.sign(
       {
         cid: user.customerId,
-        isPro: user.isPro,
-        plan: user.plan,
-        expiry: user.planExpiry, // UTC Date
+        isPro: (user.isPro && !isExpired), // Token says FALSE if expired
+        plan: isExpired ? 'free' : user.plan,
+        expiry: user.planExpiry, // UTC String
+        limit: currentLimit,     // Daily Limit in Seconds
         uid: user.uid
       },
       JWT_SECRET,
-      { expiresIn: '30d' } // 30 दिन वैलिड
+      { expiresIn: '24h' } // Short Lived (Security)
     );
 
     res.json({ success: true, sessionToken });
 
   } catch (err) {
     console.error("Login Error:", err);
-    res.status(500).json({ error: "Server Error during Login" });
+    res.status(500).json({ error: "Server Error" });
+  }
+});
+
+// 1.1 SYNC USER STATUS (Polling)
+app.post('/api/sync-user', async (req, res) => {
+  const { firebaseToken } = req.body;
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(firebaseToken);
+    const user = await User.findOne({ uid: decodedToken.uid });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Logic to check expiry (Same as Login)
+    const now = new Date();
+    const expiry = user.planExpiry ? new Date(user.planExpiry) : null;
+    let isExpired = false;
+    let currentLimit = 5400;
+
+    if (user.isPro && expiry && now > expiry) {
+      isExpired = true;
+      // Notify User (Email Trigger)
+      // sendPlanExpiredEmail(user.email);
+    }
+
+    if (user.isPro && !isExpired) {
+      currentLimit = user.dailyLimitSeconds || -1;
+    }
+
+    // Generate Fresh Token
+    const sessionToken = jwt.sign(
+      {
+        cid: user.customerId,
+        isPro: (user.isPro && !isExpired),
+        plan: isExpired ? 'free' : user.plan,
+        expiry: user.planExpiry,
+        limit: currentLimit,
+        uid: user.uid
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ success: true, sessionToken });
+
+  } catch (e) {
+    console.error("Sync Error:", e);
+    res.status(500).json({ error: "Sync Failed" });
   }
 });
 
@@ -237,7 +318,7 @@ app.post('/api/payment/capture', async (req, res) => {
     if (capture.result.status === 'COMPLETED') {
       const now = new Date();
       const expiryDate = new Date();
-      expiryDate.setDate(now.getDate() + plan.days);
+      expiryDate.setDate(now.getDate() + plan.days); // UTC Calculation
 
       await User.findOneAndUpdate(
         { uid: decoded.uid },
@@ -245,7 +326,7 @@ app.post('/api/payment/capture', async (req, res) => {
           isPro: (plan.limit === -1),
           plan: decoded.plan,
           planExpiry: expiryDate,
-          dailyLimitSeconds: plan.limit
+          dailyLimitSeconds: plan.limit // Save Limit in DB
         }
       );
       console.log(`💰 Paid: ${decoded.cid}`);
@@ -256,8 +337,34 @@ app.post('/api/payment/capture', async (req, res) => {
   }
 });
 
+// --- ALIAS ROUTES (For Frontend Compatibility) ---
+app.post('/api/create-order', (req, res) => {
+  // Redirect logic or minimal wrapper
+  // Frontend expects { planId }, Backend 'create-link' makes a JWT link
+  // We need to return the same 'url' or adapt.
+  // However, the frontend calls 'create-link' logic. Let's fix the mismatch.
+  // Frontend: dashboard_controller.js -> callApi('/create-order', ... {planId})
+
+  // We will use the Logic of 'create-link' here but return JSON suitable for an API trigger if needed.
+  // For now, let's just Redirect to the existing route handler logic.
+  req.url = '/api/payment/create-link';
+  app._router.handle(req, res);
+});
+
+app.post('/api/capture-order', (req, res) => {
+  req.url = '/api/payment/capture';
+  app._router.handle(req, res);
+});
+
 // Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server Running on UTC Timezone`);
 });
+
+// --- EMAIL NOTIFICATION HELPER (Placeholder) ---
+async function sendPlanExpiredEmail(email) {
+  console.log(`📧 [Email Mock] Sending 'Plan Expired' email to: ${email}`);
+  // Use Nodemailer or SendGrid here
+  // Example: await transporter.sendMail({ to: email, subject: "Plan Expired", ... });
+}
