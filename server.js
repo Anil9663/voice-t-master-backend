@@ -57,9 +57,9 @@ const ALLOWED_COUNTRIES = [
 ];
 
 // Allowed Languages (Whitelist)
+// Allowed Languages (Whitelist) - Synced with Frontend (languages.js)
 const ALLOWED_LANGUAGES = [
-  "hi-IN", "en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "ja-JP",
-  "zh-CN", "pt-BR", "Unknown"
+  "af-ZA", "sq-AL", "am-ET", "ar-DZ", "ar-BH", "ar-EG", "ar-IQ", "ar-IL", "ar-JO", "ar-KW", "ar-LB", "ar-MA", "ar-OM", "ar-QA", "ar-SA", "ar-PS", "ar-TN", "ar-AE", "ar-YE", "hy-AM", "az-AZ", "eu-ES", "bn-IN", "bs-BA", "bg-BG", "my-MM", "ca-ES", "hr-HR", "cs-CZ", "da-DK", "nl-BE", "nl-NL", "en-AU", "en-CA", "en-GH", "en-HK", "en-IN", "en-IE", "en-KE", "en-NZ", "en-NG", "en-PH", "en-SG", "en-ZA", "en-TZ", "en-GB", "en-US", "et-EE", "fil-PH", "fi-FI", "fr-BE", "fr-CA", "fr-FR", "fr-CH", "gl-ES", "ka-GE", "de-AT", "de-DE", "de-CH", "el-GR", "gu-IN", "hi-IN", "hu-HU", "is-IS", "id-ID", "it-IT", "it-CH", "ja-JP", "jv-ID", "kn-IN", "km-KH", "ko-KR", "lo-LA", "lv-LV", "lt-LT", "mk-MK", "ms-MY", "ml-IN", "mr-IN", "mn-MN", "ne-NP", "fa-IR", "pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU", "sr-RS", "si-LK", "sk-SK", "sl-SI", "es-AR", "es-BO", "es-CL", "es-CO", "es-CR", "es-DO", "es-EC", "es-SV", "es-GT", "es-HN", "es-MX", "es-NI", "es-PA", "es-PY", "es-PE", "es-PR", "es-ES", "es-US", "es-UY", "es-VE", "sw-KE", "sw-TZ", "sv-SE", "ta-IN", "te-IN", "th-TH", "tr-TR", "uk-UA", "uz-UZ", "vi-VN", "zu-ZA", "bn-BD", "yue-Hant-HK", "en-PK", "iw-IL", "cmn-Hans-CN", "cmn-Hant-TW", "no-NO", "pa-Guru-IN", "su-ID", "ta-MY", "ta-SG", "ta-LK", "ur-IN", "ur-PK", "ar-LY", "ar-SY", "zh-HK", "zh-CN", "zh-TW", "he-IL", "ga-IE", "kk-KZ", "mt-MT", "nb-NO", "ps-AF", "so-SO", "es-CU", "es-GQ", "cy-GB", "Unknown"
 ];
 
 // Allowed Survey Data
