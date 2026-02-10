@@ -2,34 +2,35 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
     // 1. Identity
-    uid: { type: String, required: true, unique: true }, // Firebase UID (Internal)
-    customerId: { type: String, unique: true }, // Public ID (VTM-202601301000)
+    uid: { type: String, required: true, unique: true }, // Firebase UID
+    customerId: { type: String, unique: true }, // VTM-202602101001
     email: String,
     name: String,
 
     // 2. Business Logic
-    walletBalance: { type: Number, default: 0 }, // Refer & Earn Balance
+    walletBalance: { type: Number, default: 0 },
     isPro: { type: Boolean, default: false },
     plan: { type: String, default: 'free' },
-    // 🔥 New Field: Daily Usage Limit (Seconds)
-    dailyLimitSeconds: { type: Number, default: 5400 }, // 1.5 Hours default
+
+    // 🔥 [FIX] Daily Limit Added (Default 90 Mins = 5400 Seconds)
+    dailyLimitSeconds: { type: Number, default: 5400 },
 
     // 3. Dates (Always in UTC)
-    planExpiry: { type: Date },
+    // 🔥 [FIX] Plan Expiry Default null
+    planExpiry: { type: Date, default: null },
+
     createdAt: { type: Date, default: Date.now },
     lastLogin: { type: Date, default: Date.now },
 
-    // 4. Analytics & Survey (Overridable)
-    // यह डेटा यूजर की सेटिंग सिंक नहीं करता, बस हमारे रिकॉर्ड के लिए है
+    // 4. Analytics & Survey
     analytics: {
-        country: { type: String, required: true }, // "India"
-        inputLanguage: { type: String },           // "hi-IN"
+        country: { type: String },
+        inputLanguage: { type: String },
 
-        // 🔥 New Survey Data
         survey: {
-            profession: { type: String, default: 'Unknown' }, // e.g. "developer"
-            useCase: { type: String, default: 'Unknown' },    // e.g. "coding"
-            source: { type: String, default: 'Unknown' }      // e.g. "youtube"
+            profession: { type: String, default: 'Unknown' },
+            useCase: { type: String, default: 'Unknown' },
+            source: { type: String, default: 'Unknown' }
         }
     }
 });
