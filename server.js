@@ -63,9 +63,24 @@ const ALLOWED_LANGUAGES = [
 ];
 
 // Allowed Survey Data
-const ALLOWED_PROFESSIONS = ['student', 'developer', 'writer', 'business', 'medical', 'other', 'Unknown'];
-const ALLOWED_USECASES = ['learning', 'working', 'coding', 'writing', 'personal', 'other', 'Unknown'];
-const ALLOWED_SOURCES = ['google', 'youtube', 'friend', 'social', 'ads', 'other', 'Unknown'];
+// Allowed Survey Data
+const ALLOWED_PROFESSIONS = [
+  'student', 'developer', 'writer', 'business', 'medical', 'other', 'Unknown',
+  // UI Display Values (Fallback)
+  'Student / Researcher', 'Developer / Engineer', 'Writer / Content Creator', 'Business / Professional'
+];
+
+const ALLOWED_USECASES = [
+  'learning', 'working', 'coding', 'writing', 'personal', 'emails', 'docs', 'other', 'Unknown',
+  // UI Display Values (Fallback)
+  'Writing Emails & Messages', 'Creating Documents / Notes', 'Voice Coding', 'Language Learning'
+];
+
+const ALLOWED_SOURCES = [
+  'google', 'youtube', 'friend', 'social', 'ads', 'other', 'Unknown',
+  // UI Display Values (Fallback)
+  'YouTube', 'Google Search', 'Friend / Colleague', 'Social Media'
+];
 
 // --- 🛠️ HELPER: ID GENERATOR ---
 // Format: VTM-202601301000
@@ -113,7 +128,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     // 🛡️ 1. STRICT VALIDATION (Whitelist Check)
-    if (!ALLOWED_COUNTRIES.includes(country)) return res.status(400).json({ error: "Invalid Country" });
+    // if (!ALLOWED_COUNTRIES.includes(country)) return res.status(400).json({ error: "Invalid Country" }); // Disabled: Frontend allows all
     if (!ALLOWED_LANGUAGES.includes(language)) return res.status(400).json({ error: "Invalid Language" });
 
     if (survey) {
