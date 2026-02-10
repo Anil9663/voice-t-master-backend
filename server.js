@@ -83,24 +83,34 @@ const ALLOWED_SOURCES = [
 ];
 
 // --- 🛠️ HELPER: ID GENERATOR ---
-// Format: VTM-202601301000
+// Format: VTM-202602101001
 async function generateCustomerId() {
   const now = new Date();
-  // UTC Date Parts
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   const day = String(now.getUTCDate()).padStart(2, '0');
 
-  const dateStr = `${year}${month}${day}`; // 20260130
+  const dateStr = `${year}${month}${day}`; // 20260210
 
-  // Counter Update (Atomic Operation)
+  // Counter Update
+  // $inc के साथ upsert करने पर यह 0 से 1 हो जाता है, 
+  // इसलिए हम चेक करेंगे कि क्या यह 1000 से कम है
   const counter = await Counter.findByIdAndUpdate(
     { _id: 'customerId' },
     { $inc: { seq: 1 } },
-    { new: true, upsert: true } // Create if not exists
+    { new: true, upsert: true }
   );
 
-  return `VTM-${dateStr}-${counter.seq}`;
+  // 🔥 [FIX] अगर काउंटिंग 1000 से कम है (जैसे 1), तो इसे फोर्स करके 1001 कर दें
+  let sequence = counter.seq;
+  if (sequence < 1000) {
+    // डेटाबेस में अपडेट करें ताकि अगली बार 1002 आए
+    await Counter.findByIdAndUpdate({ _id: 'customerId' }, { seq: 1001 });
+    sequence = 1001;
+  }
+
+  // 🔥 [FIX] हाइफन हटा दिया गया है: VTM-YYYYMMDDSequence
+  return `VTM-${dateStr}${sequence}`;
 }
 
 // --- 🔒 MIDDLEWARE: Verify Session ---
@@ -155,11 +165,17 @@ app.post('/api/auth/login', async (req, res) => {
         customerId: newId,
         email,
         name: decodedToken.name || "User",
-        plan: "free", // Default
+
+        // 🔥 [FIX] Default Values Explicitly Set
+        plan: 'free',
         isPro: false,
+        walletBalance: 0,
+        dailyLimitSeconds: 5400, // 90 Mins
+        planExpiry: null, // Null for free users
+
         analytics: {
-          country,
-          inputLanguage: language,
+          country: country || 'Unknown',
+          inputLanguage: language || 'en-US',
           survey: survey || {}
         }
       });
