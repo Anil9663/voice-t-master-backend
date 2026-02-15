@@ -233,11 +233,13 @@ app.post('/api/auth/login', async (req, res) => {
     const sessionToken = jwt.sign(
       {
         cid: user.customerId,
-        isPro: (user.isPro && !isExpired), // Token says FALSE if expired
+        isPro: (user.isPro && !isExpired),
         plan: isExpired ? 'free' : user.plan,
-        expiry: user.planExpiry, // UTC String
-        limit: currentLimit,     // Daily Limit in Seconds
-        uid: user.uid
+        expiry: user.planExpiry,
+        limit: currentLimit,
+        uid: user.uid,
+        name: user.name,         // 🔥 [NEW] नाम जोड़ें
+        email: user.email        // 🔥 [NEW] ईमेल जोड़ें
       },
       JWT_SECRET,
       { expiresIn: '24h' } // Short Lived (Security)
@@ -276,6 +278,7 @@ app.post('/api/sync-user', async (req, res) => {
     }
 
     // Generate Fresh Token
+    // D. GENERATE SIGNED SESSION TOKEN
     const sessionToken = jwt.sign(
       {
         cid: user.customerId,
@@ -283,7 +286,9 @@ app.post('/api/sync-user', async (req, res) => {
         plan: isExpired ? 'free' : user.plan,
         expiry: user.planExpiry,
         limit: currentLimit,
-        uid: user.uid
+        uid: user.uid,
+        name: user.name,         // 🔥 [NEW] नाम जोड़ें
+        email: user.email        // 🔥 [NEW] ईमेल जोड़ें
       },
       JWT_SECRET,
       { expiresIn: '24h' }
