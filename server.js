@@ -238,8 +238,9 @@ app.post('/api/auth/login', async (req, res) => {
         expiry: user.planExpiry,
         limit: currentLimit,
         uid: user.uid,
-        name: user.name,         // 🔥 [NEW] नाम जोड़ें
-        email: user.email        // 🔥 [NEW] ईमेल जोड़ें
+        name: user.name,
+        email: user.email,
+        photo: decodedToken.picture // 🔥 [NEW] Google से आने वाली प्रोफाइल फोटो
       },
       JWT_SECRET,
       { expiresIn: '24h' } // Short Lived (Security)
@@ -287,8 +288,9 @@ app.post('/api/sync-user', async (req, res) => {
         expiry: user.planExpiry,
         limit: currentLimit,
         uid: user.uid,
-        name: user.name,         // 🔥 [NEW] नाम जोड़ें
-        email: user.email        // 🔥 [NEW] ईमेल जोड़ें
+        name: user.name,
+        email: user.email,
+        photo: decodedToken.picture // 🔥 [NEW] Google से आने वाली प्रोफाइल फोटो
       },
       JWT_SECRET,
       { expiresIn: '24h' }
