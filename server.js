@@ -467,6 +467,81 @@ app.post('/api/capture-order', (req, res) => {
   app._router.handle(req, res);
 });
 
+
+
+
+
+
+
+// =========================================================
+// 🚀 NEW SECURE CHECKOUT FLOW (For Standalone Website)
+// =========================================================
+
+// 1. Generate Secure Checkout Link (एक्सटेंशन इसे कॉल करेगा)
+app.post('/api/payment/create-checkout-link', verifySession, async (req, res) => {
+  const { planId } = req.body;
+
+  if (!PLANS[planId]) return res.status(400).json({ error: "Invalid Plan" });
+
+  // A. 15 मिनट वाला सुरक्षित टोकन बनाएँ
+  const checkoutToken = jwt.sign(
+    {
+      cid: req.user.cid,
+      uid: req.user.uid,
+      plan: planId
+    },
+    JWT_SECRET,
+    { expiresIn: '15m' } // 🔥 सिर्फ 15 मिनट के लिए वैलिड
+  );
+
+  // B. आपकी नई वेबसाइट का URL 
+  // (जब तक GitHub पर लाइव नहीं करते, तब तक आप यहाँ अपनी लोकल कंप्यूटर वाली index.html का पाथ डाल सकते हैं)
+  const WEBSITE_URL = "https://anil9663.github.io/VoiceTMaster/"; // <-- बाद में इसे अपने असली गिटहब लिंक से बदलें
+  // लोकल टेस्टिंग के लिए आप इसे ऐसे भी रख सकते हैं: "http://127.0.0.1:5500/index.html"
+
+  // C. पूरा URL बनाकर एक्सटेंशन को भेजें
+  const redirectUrl = `${WEBSITE_URL}?token=${checkoutToken}`;
+
+  console.log(`🔗 Generated Checkout Link for: ${req.user.cid} -> ${planId}`);
+  res.json({ url: redirectUrl });
+});
+
+// 2. Verify Checkout Token (नई वेबसाइट इसे कॉल करेगी)
+app.post('/api/payment/verify-checkout-token', async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    // टोकन को डिकोड करें
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // डेटाबेस से ताज़ा जानकारी निकालें (ताकि वेबसाइट पर नाम/फोटो सही दिखे)
+    const user = await User.findOne({ uid: decoded.uid });
+    if (!user) return res.status(404).json({ valid: false, error: "User not found" });
+
+    const plan = PLANS[decoded.plan];
+
+    // सब सही है, वेबसाइट को यूजर का डेटा भेजें
+    res.json({
+      valid: true,
+      uid: user.uid,
+      customerId: user.customerId,
+      name: user.name,
+      email: user.email,
+      planId: decoded.plan,
+      planName: plan.name,
+      price: plan.price
+    });
+  } catch (e) {
+    console.error("❌ Checkout Token Expired or Invalid");
+    res.status(400).json({ valid: false, error: "Link Expired. Please try again." });
+  }
+});
+
+
+
+
+
+
 // Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
