@@ -10,6 +10,7 @@ const paypal = require('@paypal/checkout-server-sdk');
 // Models Import
 const User = require('./models/User');
 const Counter = require('./models/Counter');
+const Order = require('./models/Order'); // 🔥 [NEW] Order Model जोड़ें
 
 // --- CONFIG ---
 const app = express();
@@ -412,7 +413,7 @@ app.post('/api/create-order-web', async (req, res) => {
 
 // 8. Capture Order (Web/UID)
 app.post('/api/capture-order-web', async (req, res) => {
-  const { orderID, planId, uid } = req.body;
+  const { orderID, planId, uid, cid } = req.body; // 🔥 [NEW] Frontend से cid भी लेंगे
   const plan = PLANS[planId];
 
   if (!plan) return res.status(400).json({ error: "Invalid Plan" });
@@ -428,7 +429,7 @@ app.post('/api/capture-order-web', async (req, res) => {
       const expiryDate = new Date();
       expiryDate.setDate(now.getDate() + plan.days);
 
-      // Update User directly by UID
+      // 1. User को Pro बनाएँ (Direct Update)
       await User.findOneAndUpdate(
         { uid: uid },
         {
@@ -439,11 +440,25 @@ app.post('/api/capture-order-web', async (req, res) => {
         }
       );
 
-      console.log(`💰 Paid (Web): ${uid} -> ${planId}`);
+      // 2. 🔥 [NEW] नया Order डेटाबेस में सेव करें
+      const newOrder = new Order({
+        orderId: orderID,
+        uid: uid,
+        customerId: cid || "Unknown",
+        planId: planId,
+        amount: plan.price,
+        gateway: 'PayPal',
+        status: 'COMPLETED'
+      });
+      await newOrder.save();
+
+      console.log(`✅ 💰 Payment Success: ${cid} bought ${planId}`);
       res.json({ success: true });
+    } else {
+      res.status(400).json({ error: "Payment not completed on PayPal end." });
     }
   } catch (e) {
-    console.error("PayPal Capture Error:", e);
+    console.error("❌ PayPal Capture Error:", e);
     res.status(500).json({ error: "Capture Failed" });
   }
 });
