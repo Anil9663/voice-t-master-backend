@@ -429,9 +429,9 @@ app.post('/api/capture-order-web', async (req, res) => {
       const expiryDate = new Date();
       expiryDate.setDate(now.getDate() + plan.days);
 
-      // 1. User को Pro बनाएँ (Direct Update)
+      // 1. User को Pro बनाएँ (Direct Update via Customer ID)
       await User.findOneAndUpdate(
-        { uid: uid },
+        { customerId: cid }, // 🔥 [FIXED] अब हम अपनी Customer ID से यूज़र को ढूँढेंगे!
         {
           isPro: (plan.limit === -1),
           plan: planId,
