@@ -370,6 +370,32 @@ app.post('/api/sync-user', async (req, res) => {
 
 
 
+
+    // 1.3 GET USER ORDER HISTORY (Last 1 Year Only - Lazy Loading)
+    app.get('/api/my-orders', verifySession, async (req, res) => {
+      try {
+        const cid = req.user.cid; // सिक्योर टोकन से Customer ID निकाली
+        if (!cid) return res.status(400).json({ error: "Customer ID missing" });
+
+        // ठीक 1 साल पहले की तारीख निकालें
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+        // डेटाबेस से ढूँढें: सिर्फ इस CID के ऑर्डर जो 1 साल के अंदर हों (सबसे नए पहले)
+        const orders = await Order.find({ 
+            customerId: cid, 
+            createdAt: { $gte: oneYearAgo } 
+        }).sort({ createdAt: -1 });
+
+        res.json({ success: true, orders: orders });
+      } catch (e) {
+        console.error("Order Fetch Error:", e);
+        res.status(500).json({ error: "Failed to fetch history" });
+      }
+    });
+
+
+
 // 2. GENERATE PAYMENT LINK
 app.post('/api/payment/create-link', verifySession, async (req, res) => {
   const { planId } = req.body;
