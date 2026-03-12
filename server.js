@@ -42,12 +42,24 @@ const client = new paypal.core.PayPalHttpClient(
 
 // Plans Config
 const PLANS = {
-  "daily_4hr": { price: "4.99", days: 30, limit: 14400, name: "Creator Pro" },
-  "daily_2hr": { price: "2.99", days: 30, limit: 7200, name: "Starter Flex" },
+  // --- 🌟 MAIN PRO PLANS ---
   "pro_monthly": { price: "5.99", days: 30, limit: -1, name: "Monthly Pro" },
+  "pro_3months": { price: "14.99", days: 90, limit: -1, name: "3 Months Pro" },
+  "pro_6months": { price: "23.99", days: 180, limit: -1, name: "6 Months Pro" },
   "pro_yearly": { price: "35.99", days: 365, limit: -1, name: "Yearly Saver" },
   "lifetime_pro": { price: "199.99", days: 36500, limit: -1, name: "Lifetime Access" },
-  "pass_1day": { price: "2.99", days: 1, limit: -1, name: "1 Day Pass" }
+
+  // --- ⏱️ DAILY USAGE PLANS (Limits in seconds) ---
+  "daily_2hr": { price: "2.99", days: 30, limit: 7200, name: "Starter Flex (2 Hrs)" },
+  "daily_2_5hr": { price: "3.49", days: 30, limit: 9000, name: "Student Smart (2.5 Hrs)" },
+  "daily_3hr": { price: "3.99", days: 30, limit: 10800, name: "Study Plus (3 Hrs)" },
+  "daily_3_5hr": { price: "4.49", days: 30, limit: 12600, name: "Writer Flow (3.5 Hrs)" },
+  "daily_4hr": { price: "4.99", days: 30, limit: 14400, name: "Creator Pro (4 Hrs)" },
+
+  // --- 🎫 PRO ACCESS PASSES ---
+  "pass_1day": { price: "2.99", days: 1, limit: -1, name: "1 Day Pro Pass" },
+  "pass_3day": { price: "3.99", days: 3, limit: -1, name: "3 Day Pro Pass" },
+  "pass_7day": { price: "4.99", days: 7, limit: -1, name: "7 Day Pro Pass" }
 };
 
 // --- 🛡️ VALIDATION CONSTANTS ---
