@@ -305,6 +305,59 @@ app.post('/api/sync-user', async (req, res) => {
   }
 });
 
+
+
+    // 1.2 SILENT BACKGROUND SYNC (For Extension Background Script)
+    app.get('/api/refresh-session', verifySession, async (req, res) => {
+      try {
+        const user = await User.findOne({ uid: req.user.uid });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const now = new Date();
+        const expiry = user.planExpiry ? new Date(user.planExpiry) : null;
+        let isExpired = false;
+        let currentLimit = 5400;
+
+        if (user.isPro && expiry && now > expiry) {
+          isExpired = true;
+        }
+        if (user.isPro && !isExpired) {
+          currentLimit = user.dailyLimitSeconds || -1;
+        }
+
+        const sessionToken = jwt.sign(
+          {
+            cid: user.customerId,
+            isPro: (user.isPro && !isExpired),
+            plan: isExpired ? 'free' : user.plan,
+            expiry: user.planExpiry,
+            limit: currentLimit,
+            uid: user.uid,
+            name: user.name,
+            email: user.email,
+            photo: req.user.photo
+          },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+
+        res.json({ 
+          success: true, 
+          sessionToken, 
+          isPro: (user.isPro && !isExpired), 
+          plan: user.plan, 
+          limit: currentLimit,
+          expiry: user.planExpiry
+        });
+
+      } catch (e) {
+        console.error("Refresh Error:", e);
+        res.status(500).json({ error: "Refresh Failed" });
+      }
+    });
+
+
+
 // 2. GENERATE PAYMENT LINK
 app.post('/api/payment/create-link', verifySession, async (req, res) => {
   const { planId } = req.body;
