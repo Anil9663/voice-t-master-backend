@@ -230,9 +230,20 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (user.isPro && expiry && now > expiry) {
       isExpired = true;
-      console.log(`⚠️ Plan Expired for ${user.customerId}`);
-      // Notify User (Email Trigger)
-      // sendPlanExpiredEmail(user.email); 
+      console.log(`⚠️ [Login] Plan Expired for ${user.customerId}. Resetting DB to Free.`);
+      
+      // 🔥 डेटाबेस में डिफॉल्ट वैल्यू सेट करें
+      await User.findOneAndUpdate(
+        { uid: user.uid },
+        {
+          isPro: false,
+          plan: 'free',
+          dailyLimitSeconds: 5400
+        }
+      );
+      
+      user.isPro = false;
+      user.plan = 'free';
     }
 
     // Determine Final Limits for Token
@@ -241,7 +252,7 @@ app.post('/api/auth/login', async (req, res) => {
     } else {
       currentLimit = 5400; // Back to Free Limit
     }
-
+    
     // D. GENERATE SIGNED SESSION TOKEN
     const sessionToken = jwt.sign(
       {
@@ -283,11 +294,22 @@ app.post('/api/sync-user', async (req, res) => {
 
     if (user.isPro && expiry && now > expiry) {
       isExpired = true;
-      // Notify User (Email Trigger)
-      // sendPlanExpiredEmail(user.email);
-    }
-
-    if (user.isPro && !isExpired) {
+      console.log(`⚠️ [Sync] Plan Expired for ${user.customerId}. Resetting DB to Free.`);
+      
+      // 🔥 डेटाबेस में तुरंत डिफॉल्ट वैल्यू सेट करें
+      await User.findOneAndUpdate(
+        { uid: user.uid },
+        {
+          isPro: false,
+          plan: 'free',
+          dailyLimitSeconds: 5400
+        }
+      );
+      
+      user.isPro = false;
+      user.plan = 'free';
+      currentLimit = 5400;
+    } else if (user.isPro && !isExpired) {
       currentLimit = user.dailyLimitSeconds || -1;
     }
 
@@ -332,8 +354,23 @@ app.post('/api/sync-user', async (req, res) => {
 
         if (user.isPro && expiry && now > expiry) {
           isExpired = true;
-        }
-        if (user.isPro && !isExpired) {
+          console.log(`⚠️ [Refresh] Plan Expired for ${user.customerId}. Resetting DB to Free.`);
+          
+          // 🔥 डेटाबेस में तुरंत डिफॉल्ट वैल्यू सेट करें
+          await User.findOneAndUpdate(
+            { uid: user.uid },
+            {
+              isPro: false,
+              plan: 'free',
+              dailyLimitSeconds: 5400
+            }
+          );
+          
+          // टोकन के लिए लोकल वेरिएबल भी अपडेट कर दें
+          user.isPro = false;
+          user.plan = 'free';
+          currentLimit = 5400;
+        } else if (user.isPro && !isExpired) {
           currentLimit = user.dailyLimitSeconds || -1;
         }
 
