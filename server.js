@@ -202,8 +202,10 @@ app.post('/api/auth/login', async (req, res) => {
 
       // Update Analytics (Trusted Data)
       if (!user.analytics) user.analytics = {};
-      user.analytics.country = country;
-      user.analytics.inputLanguage = language;
+      
+      // 🔥 [FIX] अगर डेटा आया है, तभी अपडेट करें (पुराना डेटा डिलीट होने से बचाएं)
+      if (country !== undefined) user.analytics.country = country;
+      if (language !== undefined) user.analytics.inputLanguage = language;
 
       // Update Survey (Merge)
       if (survey) {
@@ -270,7 +272,11 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '24h' } // Short Lived (Security)
     );
 
-    res.json({ success: true, sessionToken });
+    res.json({ 
+        success: true, 
+        sessionToken,
+        analytics: user.analytics // 🔥 [NEW] UI में भरने के लिए MongoDB से पुराना डेटा भेजें
+    });
 
   } catch (err) {
     console.error("Login Error:", err);
@@ -331,7 +337,12 @@ app.post('/api/sync-user', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.json({ success: true, sessionToken });
+    // 🔥 [FIX: Send analytics back to frontend]
+    res.json({ 
+        success: true, 
+        sessionToken: sessionToken,
+        analytics: user.analytics || {} // <-- यह लाइन गायब थी!
+    });
 
   } catch (e) {
     console.error("Sync Error:", e);
