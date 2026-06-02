@@ -249,10 +249,14 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // Determine Final Limits for Token
-    if (user.isPro && !isExpired) {
-      currentLimit = user.dailyLimitSeconds || -1; // -1 means Unlimited
-    } else {
+    if (isExpired) {
       currentLimit = 5400; // Back to Free Limit
+      console.log(`🔄 [Login] Plan expired, setting limit to 5400`);
+    } else {
+      // 🔥 [CRITICAL FIX] Pro हो या Hourly (Daily Plan), डेटाबेस की लिमिट उठाओ!
+      // (हमने user.isPro वाली शर्त हटा दी है)
+      currentLimit = user.dailyLimitSeconds || 5400; 
+      console.log(`✅ [Login] Active Plan: ${user.plan} | Limit: ${currentLimit}`);
     }
     
     // D. GENERATE SIGNED SESSION TOKEN
@@ -315,8 +319,11 @@ app.post('/api/sync-user', async (req, res) => {
       user.isPro = false;
       user.plan = 'free';
       currentLimit = 5400;
-    } else if (user.isPro && !isExpired) {
-      currentLimit = user.dailyLimitSeconds || -1;
+    } else if (!isExpired) { 
+      // 🔥 [CRITICAL FIX] यहाँ से 'user.isPro &&' की शर्त हटा दी है!
+      // क्योंकि Hourly Plan में isPro 'false' होता है।
+      currentLimit = user.dailyLimitSeconds || 5400;
+      console.log(`✅ [Sync] Valid Plan: ${user.plan} | Limit: ${currentLimit}`);
     }
 
     // Generate Fresh Token
@@ -381,8 +388,10 @@ app.post('/api/sync-user', async (req, res) => {
           user.isPro = false;
           user.plan = 'free';
           currentLimit = 5400;
-        } else if (user.isPro && !isExpired) {
-          currentLimit = user.dailyLimitSeconds || -1;
+        } else if (!isExpired) {
+          // 🔥 [CRITICAL FIX] यहाँ से भी 'user.isPro &&' हटा दिया है!
+          currentLimit = user.dailyLimitSeconds || 5400;
+          console.log(`✅ [Refresh] Valid Plan: ${user.plan} | Limit: ${currentLimit}`);
         }
 
         const sessionToken = jwt.sign(
